@@ -1,3 +1,6 @@
+import tensorflow as tf
+
+
 # netowrk definition
 def lstm_definition(input_shape, output_shape):
     # network definition
