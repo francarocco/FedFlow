@@ -1,23 +1,14 @@
 # importing libraries
-
-import pandas as pd
-import matplotlib.pyplot as plt
-#import seaborn as sns
-import datetime as dtm
 import pickle
 import numpy as np
 
 import tensorflow as tf
 
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import mean_squared_error
-from sklearn.metrics import mean_absolute_error
-from math import sqrt
+
 from tensorflow.keras import backend as K
 
-from utilities import *
-from networks import *
+from utilities.utilities import *
+from utilities.networks import *
 
 from fedflow import FedFlow
 
@@ -29,8 +20,7 @@ epochs = 3
 num_clients = 5
 num_rounds = 25
 epochs_finetuning = 3
-splits = [0, 1, 2]
-seeds = [26, 6, 76]
+splits = range(5)
 
 print(tf.config.list_physical_devices('GPU'),flush=True)
 
@@ -39,11 +29,9 @@ print(tf.config.list_physical_devices('GPU'),flush=True)
 path_files = f'../data'
 
 
-print('Generating clients datasets', flush=True)
-
 for split in splits:
 
-    print('Reading clients datasets', flush=True)
+    print(f'Reading clients datasets for split {split}', flush=True)
     X_train = []
     y_train = []
     X_val = []
@@ -96,7 +84,7 @@ for split in splits:
         context_vectors = pickle.load(f)
 
     #opening average stops values for clients: 
-    path_scaler = f'{path_files}/scalers/scaler.pkl'
+    path_scaler = f'{path_files}/scalers/scaler_split{split}.pkl'
     with open(path_scaler, 'rb') as f:
         scaler = pickle.load(f)
 

@@ -7,13 +7,18 @@ import pickle
 import numpy as np
 
 import tensorflow as tf
+from tensorflow.keras import backend as K
+
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 from math import sqrt
-from tensorflow.keras import backend as K
+from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.arima.model import ARIMA
+
+
 
 # defintion of utility function
 
@@ -67,6 +72,47 @@ def df_to_supervised_routes(df_train,scaler,n_steps_in,n_features,n_steps_out):
     return X_train, y_train
 
 
+# make a persistence forecast
+def persistence(last_ob, n_seq):
+	return [last_ob for i in range(n_seq)]
+
+# evaluate the persistence model
+def make_forecasts_naive_forecasting(test, n_lag, n_seq):
+    test = np.array(test)
+    forecasts = list()
+    for i in range(len(test)):
+        X, y = test[i, 0:n_lag], test[i, n_lag:]
+        # make forecast
+        forecast = persistence(X[-1], n_seq)
+        # store the forecast
+        forecasts.append(forecast)
+    return forecasts
+
+# evaluate the RMSE for each forecast time step
+def evaluate_forecasts_naive_forecasting(test, forecasts, n_lag, n_seq):
+  AE=pd.DataFrame()
+  SE=pd.DataFrame()
+  test = np.array(test)
+  forecast = np.array(forecasts)
+  for i in range(n_seq):
+    actual = test[:,(n_lag+i)]
+    predicted = [forecast[i] for forecast in forecasts]
+    rmse = sqrt(mean_squared_error(actual, predicted))
+    print('t+%d RMSE: %f' % ((i+1), rmse))
+    mae = mean_absolute_error(actual,predicted)
+    print('t+%d MAE: %f' % ((i+1), mae))
+    AEi=pd.DataFrame()
+    absolute_error=np.absolute(np.asarray(actual)-np.asarray(predicted))
+    AEi['Absolute Error']=absolute_error
+    AEi['Horizon'] = pd.Series(['horizon = %d ' % (i+1) for x in range(len(AEi.index))])
+    AE= pd.concat([AE,AEi], ignore_index=True)
+    SEi=pd.DataFrame()
+    square_error=np.square(np.asarray(actual)-np.asarray(predicted))
+    SEi['Square Error']=square_error
+    SEi['Horizon'] = pd.Series(['horizon = %d ' % (i+1) for x in range(len(SEi.index))])
+    SE= pd.concat([SE,SEi], ignore_index=True)
+
+  return AE, SE
 
 # evaluate the RMSE for each forecast time step
 def evaluate_forecasts(y_test, forecasts, n_lag, n_seq):
@@ -131,6 +177,25 @@ def evaluate_MAPE_forecasts(y_test, forecasts, n_lag, n_seq):
 		APE=pd.concat([APE,APEi],ignore_index=True)
 	return APE
 
+# evaluate the MAPE
+def evaluate_MAPE_forecasts_naive_forecasting(y_test, forecasts, n_lag, n_seq):
+    APE=pd.DataFrame()
+    y_test = np.array(y_test)
+    forecast = np.array(forecasts)
+    for i in range(n_seq):
+        actual = y_test[:,i]
+        predicted = [forecast[i] for forecast in forecasts]
+        #rmse = sqrt(mean_squared_error(actual, predicted))
+        #mape = mean_absolute_percentage_error(actual,predicted)
+        #print('t+%d RMSE: %f' % ((i+1), rmse),flush=True)
+        #print('t+%d MAPE: %f' % ((i+1), mape),flush=True)
+        APEi=pd.DataFrame()
+        absolute_percentage_error=[custom_mean_absolute_percentage_error([actual[j]],[predicted[j]]) for j in range(len(actual))]
+        APEi['Absolute Percentage Error']=absolute_percentage_error
+        APEi['Horizon'] = pd.Series(['horizon = %d ' % (i+1) for x in range(len(APEi.index))])
+        APE=pd.concat([APE,APEi],ignore_index=True)
+    return APE
+
 def inverse_transform(scaler, preds):
     # Initialize an empty matrix
     inverted = np.empty((preds.shape[0], 0))
@@ -149,7 +214,79 @@ def inverse_transform(scaler, preds):
         inverted_pred = inverted_values[:,0]
         inverted = np.column_stack((inverted,inverted_pred))
     return(inverted)
+# finding the best hyperparameters
 
+def adf_test(series):
+    result = adfuller(series)
+    print('ADF Statistic:', result[0])
+    print('p-value:', result[1])
+    return result[1]  # Return p-value
+
+# evaluate the persistence model
+def make_arima_forecasts(train,test, n_lag, n_seq, order):
+    forecasts = []
+    actuals = []
+    history  = [x for x in train]
+    for t in range(len(test)):
+        if (t+n_seq)<len(test):
+            last_obs = test[t]
+            history.append(last_obs)
+            actual = test[t:(t+n_seq)]
+            actuals.append(actual)
+            try:
+                model = ARIMA(history[-n_lag:], order=order)
+                model_fit = model.fit()
+                output = model_fit.forecast(steps=n_seq)
+                forecasts.append(output)
+            except Exception as e:
+                print(f"Error during forecasting at step {t} with window: {e}")
+                forecasts.append([0] * n_seq)
+                
+    return forecasts, actuals
+
+# evaluate the RMSE for each forecast time step
+def evaluate_arima_forecasts(test, forecasts, n_lag, n_seq):
+    AE=pd.DataFrame()
+    SE=pd.DataFrame()
+    test = np.array(test)
+    forecasts = np.array(forecasts)
+    for i in range(n_seq):
+        actual = test[:,i]
+        predicted = [forecast[i] for forecast in forecasts]
+        #rmse = sqrt(mean_squared_error(actual, predicted))
+        #print('t+%d RMSE: %f' % ((i+1), rmse))
+        #mae = mean_absolute_error(actual,predicted)
+        #print('t+%d MAE: %f' % ((i+1), mae))
+        AEi=pd.DataFrame()
+        absolute_error=np.absolute(np.asarray(actual)-np.asarray(predicted))
+        AEi['Absolute Error']=absolute_error
+        AEi['Horizon'] = pd.Series(['horizon = %d ' % (i+1) for x in range(len(AEi.index))])
+        AE= pd.concat([AE,AEi], ignore_index=True)
+        SEi=pd.DataFrame()
+        square_error=np.square(np.asarray(actual)-np.asarray(predicted))
+        SEi['Square Error']=square_error
+        SEi['Horizon'] = pd.Series(['horizon = %d ' % (i+1) for x in range(len(SEi.index))])
+        SE= pd.concat([SE,SEi], ignore_index=True)
+    return AE, SE
+
+# evaluate the MAPE
+def evaluate_arima_MAPE_forecasts(y_test, forecasts, n_lag, n_seq):
+    APE=pd.DataFrame()
+    y_test = np.array(y_test)
+    forecasts = np.array(forecasts)
+    for i in range(n_seq):
+        actual = y_test[:,i]
+        predicted = [forecast[i] for forecast in forecasts]
+        #rmse = sqrt(mean_squared_error(actual, predicted))
+        #mape = mean_absolute_percentage_error(actual,predicted)
+        #print('t+%d RMSE: %f' % ((i+1), rmse),flush=True)
+        #print('t+%d MAPE: %f' % ((i+1), mape),flush=True)
+        APEi=pd.DataFrame()
+        absolute_percentage_error=[custom_mean_absolute_percentage_error([actual[j]],[predicted[j]]) for j in range(len(actual))]
+        APEi['Absolute Percentage Error']=absolute_percentage_error
+        APEi['Horizon'] = pd.Series(['horizon = %d ' % (i+1) for x in range(len(APEi.index))])
+        APE=pd.concat([APE,APEi],ignore_index=True)
+    return APE
 
 '''
 def weight_scalling_factor(clients_trn_data, client_name):

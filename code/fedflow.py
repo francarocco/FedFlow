@@ -1,23 +1,15 @@
 # importing libraries
-
-import pandas as pd
-import matplotlib.pyplot as plt
-#import seaborn as sns
-import datetime as dtm
-import pickle
 import numpy as np
-
 import tensorflow as tf
 
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import mean_squared_error
-from sklearn.metrics import mean_absolute_error
-from math import sqrt
 from tensorflow.keras import backend as K
 
-from utilities import *
-from networks import *
+import sys
+import os
+
+
+from utilities.utilities import *
+from utilities.networks import * 
 
 class FedFlow:
 
@@ -25,10 +17,10 @@ class FedFlow:
         self = self
 
       
-    def calculate_scaling_factor(similarity_lists,i): # calculate scaling factors for client i
+    def calculate_scaling_factor(self,similarity_lists,i): # calculate scaling factors for client i
         return similarity_lists[i]
 
-    def weight_scaling_factor(X_train,i):
+    def weight_scaling_factor(self,X_train,i):
         # Get the total number of training data points across all clients
         global_count = sum(X.shape[0] for X in X_train)
 
@@ -37,7 +29,7 @@ class FedFlow:
 
         return scaling_factor
 
-    def scale_model_weights(weight, scalar):
+    def scale_model_weights(self,weight, scalar):
         '''function for scaling a models weights'''
         weight_final = []
         steps = len(weight)
@@ -47,7 +39,7 @@ class FedFlow:
 
 
 
-    def sum_scaled_weights(scaled_weight_list):
+    def sum_scaled_weights(self,scaled_weight_list):
         '''Return the sum of the listed scaled weights. The is equivalent to scaled avg of the weights'''
         avg_grad = list()
         #get the average grad accross all client gradients
@@ -57,7 +49,7 @@ class FedFlow:
             
         return avg_grad
         
-    def custom_scaled_weights_client(local_weight_list, client_scaling_factor): # calculate new weights for client i
+    def custom_scaled_weights_client(self,local_weight_list, client_scaling_factor): # calculate new weights for client i
         num_clients = len(local_weight_list)
         print(f'len local weight list: {len(local_weight_list)}', flush=True)
         print(f'client scaling factor: {len(client_scaling_factor)}', flush=True)
@@ -68,7 +60,7 @@ class FedFlow:
         updated_local_weigths = self.sum_scaled_weights(temp_weight_i)
         return updated_local_weigths
 
-    def calculate_similarities(context_vectors): # calculate similarities among context vectors
+    def calculate_similarities(self,context_vectors): # calculate similarities among context vectors
         # normalize clients context vectors
         context_vectors[:-1,:] = min_max_normalize(context_vectors[:-1,:])
         context_vectors[-1:,:] = min_max_normalize(context_vectors[-1:,:])
@@ -86,7 +78,7 @@ class FedFlow:
             similarity_lists.append(euclidean_distances_area)
         return similarity_lists
 
-    def fedflow_models_generation(path_files,input_shape,output_shape,similarity_lists,X_train,y_train,X_val,y_val,split,epochs,num_rounds): # generate personalized models through FedFlow
+    def fedflow_models_generation(self,path_files,input_shape,output_shape,similarity_lists,X_train,y_train,X_val,y_val,split,epochs,num_rounds): # generate personalized models through FedFlow
         # network definition
         global_model = lstm_definition(input_shape,output_shape)
     
@@ -136,7 +128,7 @@ class FedFlow:
             local_model.save(path_local_model)
 
 
-    def fedflow_finetuning(path_files,X_train,y_train,X_val,y_val,X_test,y_test,split,epochs_finetuning,scaler,n_steps_in,n_steps_out):   
+    def fedflow_finetuning(self,path_files,X_train,y_train,X_val,y_val,X_test,y_test,split,epochs_finetuning,scaler,n_steps_in,n_steps_out):   
         for i in range(len(X_train)):
                     
             # working with local model obtained through FedFlow
