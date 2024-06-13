@@ -8,4 +8,37 @@ In this paper, we propose FedFlow: a personalized federated learning framework t
 The proposed framework has been experimentally validated on mobility data collected in a major Italian city, comparing FL predictions obtained by FedFlow against those obtained by LSTM models trained on local data, centralized data, and FedAvg. Results show that FedFlow outperforms all the considered adversary techniques.
 This work demonstrates that our proposal of personalized FL is effective in predicting PF while ensuring data privacy.
 
+## Repository Organization
+The repository is organized as follows:
+
+```plaintext
+FedFlow/
+├── data/
+│   ├── models/        --> the trained models
+│   ├── results/       --> the results of the models
+│   ├── input_data/    --> input data for model training (private)
+│   └── scalers/       --> scalers 
+├── code/
+│   ├── baselines/     --> python codes for the baseline methods
+│   ├── utilities/     --> utilitiy functions
+│   ├── fedflow.py     --> definition of the FedFlow framework
+│   └── run_fedflow.py --> python script for running fedflow on the private dataset
+├── requirements.txt
+└──  README.md
+```
+
+
+## Prerequisites
+FedFlow is realized in Python (3.10). To execute FedFlow the following packages are needed:
+
+- sickit-learn 1.5.0
+- scipy 1.13.1
+- numpy 1.26.4
+- tensorflow 2.15.0
+- pandas 1.5.3
+- keras 2.15.0
+
+
+
+
 
