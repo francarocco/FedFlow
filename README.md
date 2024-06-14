@@ -15,11 +15,11 @@ The repository is organized as follows:
 FedFlow/
 ├── data/
 │   ├── models/        --> the trained models
-│   ├── results/       --> the results of the models
+│   ├── results/       --> the results of the models (private)
 │   ├── input_data/    --> input data for model training (private)
-│   └── scalers/       --> scalers 
+│   └── scalers/       --> scalers (private)
 ├── code/
-│   ├── baselines/     --> python codes for the baseline methods
+│   ├── baselines/     --> python codes for generating baseline models
 │   ├── utilities/     --> utilitiy functions
 │   ├── fedflow.py     --> definition of the FedFlow framework
 │   └── run_fedflow.py --> python script for running fedflow on the private dataset
