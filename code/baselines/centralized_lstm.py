@@ -18,7 +18,7 @@ num_clients = 5
 epochs = 100
 splits = range(5)
 
-path_files = '../../data'
+path_files = '../../data/input_data'
 
 print(tf.config.list_physical_devices('GPU'),flush=True)
 

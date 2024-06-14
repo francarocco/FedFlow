@@ -17,7 +17,7 @@ num_clients = 5
 epochs = 100
 splits = range(5)
 
-path_files = '../../data'
+path_files = '../../data/input_data'
 
 for split in splits:
     for i in range(num_clients): #working area by area

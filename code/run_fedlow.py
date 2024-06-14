@@ -26,7 +26,7 @@ print(tf.config.list_physical_devices('GPU'),flush=True)
 
 
 
-path_files = f'../data'
+path_files = '../data/input_data'
 
 
 for split in splits:
@@ -39,16 +39,16 @@ for split in splits:
     X_test = []
     y_test = []
     for i in range(num_clients):
-        path_X_test_i = f'../data/xtest_{i}_split{split}.npy'
-        path_y_test_i = f'../data/ytest_{i}_split{split}.npy'
+        path_X_test_i = f'{path_files}/xtest_{i}_split{split}.npy'
+        path_y_test_i = f'{path_files}/ytest_{i}_split{split}.npy'
         X_test_i = np.load(path_X_test_i)
         y_test_i = np.load(path_y_test_i)
-        path_X_val_i = f'../data/xval_{i}_split{split}.npy'
-        path_y_val_i = f'../data/yval_{i}_split{split}.npy'
+        path_X_val_i = f'{path_files}/xval_{i}_split{split}.npy'
+        path_y_val_i = f'{path_files}/yval_{i}_split{split}.npy'
         X_val_i = np.load(path_X_val_i)
         y_val_i = np.load(path_y_val_i)
-        path_X_train_i = f'../data/xtrain_{i}_split{split}.npy'
-        path_y_train_i = f'../data/ytrain_{i}_split{split}.npy'
+        path_X_train_i = f'{path_files}/xtrain_{i}_split{split}.npy'
+        path_y_train_i = f'{path_files}/ytrain_{i}_split{split}.npy'
         X_train_i = np.load(path_X_train_i)
         y_train_i = np.load(path_y_train_i)
         
@@ -62,21 +62,20 @@ for split in splits:
 
     # dataset have been already generated for LSTM
     print('Reading global training, validation, test set',flush=True)
-    path_X_train_global = f'../data/xtrain_city_split{split}.npy'
-    path_y_train_global = f'../data/ytrain_city_split{split}.npy'
+    path_X_train_global = f'{path_files}/xtrain_city_split{split}.npy'
+    path_y_train_global = f'{path_files}/ytrain_city_split{split}.npy'
     X_train_global = np.load(path_X_train_global)
     y_train_global = np.load(path_y_train_global)
-    path_X_val_global = f'../data/xval_city_split{split}.npy'
-    path_y_val_global = f'../data/yval_city_split{split}.npy'
+    path_X_val_global = f'{path_files}/xval_city_split{split}.npy'
+    path_y_val_global = f'{path_files}/yval_city_split{split}.npy'
     X_val_global = np.load(path_X_val_global)
     y_val_global = np.load(path_y_val_global)
-    path_X_test_global = f'../data/xtest_city_split{split}.npy'
-    path_y_test_global = f'../data/ytest_city_split{split}.npy'
+    path_X_test_global = f'{path_files}/xtest_city_split{split}.npy'
+    path_y_test_global = f'{path_files}/ytest_city_split{split}.npy'
     X_test_global = np.load(path_X_test_global)
     y_test_global = np.load(path_y_test_global)
 
 
-    path_files = f'../data'
 
     #opening average stops values for clients: 
     path_factors = f'{path_files}/context_vectors.pkl'

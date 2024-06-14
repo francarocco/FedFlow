@@ -16,7 +16,7 @@ n_steps_out = 3
 num_clients = 5
 splits = range(5)
 
-path_files = '../../data'
+path_files = '../../data/input_data'
 
 for split in splits:
     for i in range(num_clients): #working area by area
