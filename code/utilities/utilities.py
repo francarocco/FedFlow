@@ -1,7 +1,5 @@
-
 import pandas as pd
 import matplotlib.pyplot as plt
-#import seaborn as sns
 import datetime as dtm
 import pickle
 import numpy as np
@@ -70,7 +68,123 @@ def df_to_supervised_routes(df_train,scaler,n_steps_in,n_features,n_steps_out):
                     X_train = np.concatenate((X_train,Xi),axis=0)
                     y_train = np.concatenate((y_train,yi),axis=0)
     return X_train, y_train
+    
+# function to preprocess data for scenario s1: each area is assigned to a distinct client
+def preprocessing_s1(areas,seeds,split,n_train,n_val,df,path_data,scaler,n_steps_in,n_features,n_steps_out):
+    
+    for i in range(len(areas)): #working area by area
+        a = areas[i]
+        df_area =  df[df['area']==a]
+        weeks = np.array(df_area.week.unique())
 
+        # random sampling based on weeks
+        rng = np.random.default_rng(seed = seeds[split])
+        rng.shuffle(weeks)
+        train_weeks = weeks[:n_train]
+        val_weeks = weeks[n_train:n_train + n_val]
+        test_weeks = weeks[n_train + n_val:]
+
+        # filtering the DataFrame for each split
+        df_train = df_area[df_area['week'].isin(train_weeks)]
+        df_train.sort_values(by='timestamp',inplace=True)
+        df_val = df_area[df_area['week'].isin(val_weeks)]
+        df_val.sort_values(by='timestamp',inplace=True)
+        df_test = df_area[df_area['week'].isin(test_weeks)]
+        df_test.sort_values(by='timestamp',inplace=True)
+        
+        
+        # generating train, validation and test supervised series:
+        X_train, y_train = df_to_supervised_routes(df_train,scaler,n_steps_in,n_features,n_steps_out)
+        X_train = X_train.astype(np.float32)
+        y_train = y_train.astype(np.float32)
+        path_X_train = f'{path_data}xtrain_{i}_split{split}.npy'
+        path_y_train = f'{path_data}ytrain_{i}_split{split}.npy'
+        np.save(path_X_train,X_train)
+        np.save(path_y_train,y_train)
+
+        X_val, y_val = df_to_supervised_routes(df_val,scaler,n_steps_in,n_features,n_steps_out)
+        X_val = X_val.astype(np.float32)
+        y_val = y_val.astype(np.float32)
+        path_X_val = f'{path_data}xval_{i}_split{split}.npy'
+        path_y_val = f'{path_data}yval_{i}_split{split}.npy'
+        np.save(path_X_val,X_val)
+        np.save(path_y_val,y_val)
+
+        X_test, y_test = df_to_supervised_routes(df_test,scaler,n_steps_in,n_features,n_steps_out)   
+        X_test = X_test.astype(np.float32)
+        y_test = y_test.astype(np.float32)
+        path_X_test = f'{path_data}xtest_{i}_split{split}.npy'
+        path_y_test = f'{path_data}ytest_{i}_split{split}.npy'
+        np.save(path_X_test,X_test)
+        np.save(path_y_test,y_test)
+
+# function to preprocess data for scenario s2: each area is divided in 5 parts, each assigned to a distinct client
+def preprocessing_s2(num_clients,routes_per_area,seeds,split,n_train,n_val,df,path_data,scaler,n_steps_in,n_features,n_steps_out):
+
+    rng = np.random.default_rng(seed = seeds[split])
+    rng.shuffle(weeks)
+    train_weeks = weeks[:n_train]
+    val_weeks = weeks[n_train:n_train + n_val]
+    test_weeks = weeks[n_train + n_val:]
+    
+    # Filter the DataFrame for each split
+    df_train = df[df['week'].isin(train_weeks)]
+    df_train.sort_values(by='timestamp',inplace=True)
+    df_val = df[df['week'].isin(val_weeks)]
+    df_val.sort_values(by='timestamp',inplace=True)
+    df_test = df[df['week'].isin(test_weeks)]
+    df_test.sort_values(by='timestamp',inplace=True)
+
+    # partitioning all the routes for the number of clients:
+    all_routes_divided = []
+    for i in range(len(all_routes)):
+        routes_area = routes_per_area[i].copy() #taking the routes of the area
+        rng.shuffle(routes_area) 
+        routes_clients_area_i = divide_vector(routes_area, num_clients) # divide the routes in num_clients set
+        all_routes_divided.append(routes_clients_area_i)
+
+    temp_routes_per_clients = []
+    routes_clients = []
+    
+    for i in range(num_clients): # working client by client
+        routes_clients_i = []
+        for j in range(len(all_routes)): # a sublist for each area
+            if j < len(all_routes)/2:
+                routes_clients_i.append(all_routes_divided[j][i])
+            else: 
+                routes_clients_i.append(all_routes_divided[j][-i])
+        temp_routes_per_clients.append(routes_clients_i)
+        flat_list_i = [item for sublist in temp_routes_per_clients[i] for item in sublist] #creating a single list per client
+        routes_clients.append(flat_list_i) # append the list of the single client into a list of all the clients
+
+        df_train_i = df_train[df_train['route_id'].isin(routes_clients[i])]
+        df_val_i = df_val[df_val['route_id'].isin(routes_clients[i])]
+        df_test_i = df_test[df_test['route_id'].isin(routes_clients[i])]
+        
+        # generating train, validation and test supervised series:
+        X_train, y_train = df_to_supervised_routes(df_train_i,scaler,n_steps_in,n_features,n_steps_out)
+        X_train = X_train.astype(np.float32)
+        y_train = y_train.astype(np.float32)
+        path_X_train = f'{path_data}xtrain_{i}_split{split}_s2.npy'
+        path_y_train = f'{path_data}ytrain_{i}_split{split}_s2.npy'
+        np.save(path_X_train,X_train)
+        np.save(path_y_train,y_train)
+
+        X_val, y_val = df_to_supervised_routes(df_val_i,scaler,n_steps_in,n_features,n_steps_out)
+        X_val = X_val.astype(np.float32)
+        y_val = y_val.astype(np.float32)
+        path_X_val = f'{path_data}xval_{i}_split{split}_s2.npy'
+        path_y_val = f'{path_data}yval_{i}_split{split}_s2.npy'
+        np.save(path_X_val,X_val)
+        np.save(path_y_val,y_val)
+
+        X_test, y_test = df_to_supervised_routes(df_test_i,scaler,n_steps_in,n_features,n_steps_out)   
+        X_test = X_test.astype(np.float32)
+        y_test = y_test.astype(np.float32)
+        path_X_test = f'{path_data}xtest_{i}_split{split}_s2.npy'
+        path_y_test = f'{path_data}ytest_{i}_split{split}_s2.npy'
+        np.save(path_X_test,X_test)
+        np.save(path_y_test,y_test)
 
 # make a persistence forecast
 def persistence(last_ob, n_seq):
@@ -138,23 +252,6 @@ def evaluate_forecasts(y_test, forecasts, n_lag, n_seq):
 	return AE, SE
     
 def custom_mean_absolute_percentage_error(y_true, y_pred, epsilon=1):
-    """
-    Calculate the mean absolute percentage error with epsilon.
-
-    Parameters:
-    y_true : array-like of shape (n_samples,)
-        Ground truth (correct) target values.
-
-    y_pred : array-like of shape (n_samples,)
-        Estimated target values.
-
-    epsilon : float, optional (default=1)
-        Small value to add to the denominator to avoid division by zero.
-
-    Returns:
-    float
-        Mean absolute percentage error.
-    """
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
     absolute_percentage_error = np.abs((y_true - y_pred) / np.maximum(np.abs(y_true), epsilon))
@@ -166,10 +263,6 @@ def evaluate_MAPE_forecasts(y_test, forecasts, n_lag, n_seq):
 	for i in range(n_seq):
 		actual = [row[i] for row in y_test]
 		predicted = [forecast[i] for forecast in forecasts]
-		#rmse = sqrt(mean_squared_error(actual, predicted))
-		#mape = mean_absolute_percentage_error(actual,predicted)
-		#print('t+%d RMSE: %f' % ((i+1), rmse),flush=True)
-		#print('t+%d MAPE: %f' % ((i+1), mape),flush=True)
 		APEi=pd.DataFrame()
 		absolute_percentage_error=[custom_mean_absolute_percentage_error([actual[j]],[predicted[j]]) for j in range(len(actual))]
 		APEi['Absolute Percentage Error']=absolute_percentage_error
@@ -185,10 +278,6 @@ def evaluate_MAPE_forecasts_naive_forecasting(y_test, forecasts, n_lag, n_seq):
     for i in range(n_seq):
         actual = y_test[:,i]
         predicted = [forecast[i] for forecast in forecasts]
-        #rmse = sqrt(mean_squared_error(actual, predicted))
-        #mape = mean_absolute_percentage_error(actual,predicted)
-        #print('t+%d RMSE: %f' % ((i+1), rmse),flush=True)
-        #print('t+%d MAPE: %f' % ((i+1), mape),flush=True)
         APEi=pd.DataFrame()
         absolute_percentage_error=[custom_mean_absolute_percentage_error([actual[j]],[predicted[j]]) for j in range(len(actual))]
         APEi['Absolute Percentage Error']=absolute_percentage_error
@@ -200,7 +289,6 @@ def inverse_transform(scaler, preds):
     # Initialize an empty matrix
     inverted = np.empty((preds.shape[0], 0))
     for i in range(preds.shape[1]):
-    #for i in [0]:
         # my scaler is defined for this kind of structure:
         for_scaler = pd.DataFrame()
         for_scaler['occupancy'] = preds[:,i]
@@ -214,8 +302,9 @@ def inverse_transform(scaler, preds):
         inverted_pred = inverted_values[:,0]
         inverted = np.column_stack((inverted,inverted_pred))
     return(inverted)
+    
+    
 # finding the best hyperparameters
-
 def adf_test(series):
     result = adfuller(series)
     print('ADF Statistic:', result[0])
@@ -253,10 +342,6 @@ def evaluate_arima_forecasts(test, forecasts, n_lag, n_seq):
     for i in range(n_seq):
         actual = test[:,i]
         predicted = [forecast[i] for forecast in forecasts]
-        #rmse = sqrt(mean_squared_error(actual, predicted))
-        #print('t+%d RMSE: %f' % ((i+1), rmse))
-        #mae = mean_absolute_error(actual,predicted)
-        #print('t+%d MAE: %f' % ((i+1), mae))
         AEi=pd.DataFrame()
         absolute_error=np.absolute(np.asarray(actual)-np.asarray(predicted))
         AEi['Absolute Error']=absolute_error
@@ -277,28 +362,12 @@ def evaluate_arima_MAPE_forecasts(y_test, forecasts, n_lag, n_seq):
     for i in range(n_seq):
         actual = y_test[:,i]
         predicted = [forecast[i] for forecast in forecasts]
-        #rmse = sqrt(mean_squared_error(actual, predicted))
-        #mape = mean_absolute_percentage_error(actual,predicted)
-        #print('t+%d RMSE: %f' % ((i+1), rmse),flush=True)
-        #print('t+%d MAPE: %f' % ((i+1), mape),flush=True)
         APEi=pd.DataFrame()
         absolute_percentage_error=[custom_mean_absolute_percentage_error([actual[j]],[predicted[j]]) for j in range(len(actual))]
         APEi['Absolute Percentage Error']=absolute_percentage_error
         APEi['Horizon'] = pd.Series(['horizon = %d ' % (i+1) for x in range(len(APEi.index))])
         APE=pd.concat([APE,APEi],ignore_index=True)
     return APE
-
-'''
-def weight_scalling_factor(clients_trn_data, client_name):
-    client_names = list(clients_trn_data.keys())
-    #get the bs
-    bs = list(clients_trn_data[client_name])[0][0].shape[0]
-    #first calculate the total training data points across clinets
-    global_count = sum([tf.data.experimental.cardinality(clients_trn_data[client_name]).numpy() for client_name in client_names])*bs
-    # get the total number of data points held by a client
-    local_count = tf.data.experimental.cardinality(clients_trn_data[client_name]).numpy()*bs
-    return local_count/global_count
-'''
 
 # Function to calculate Euclidean distance between two matrices 
 def euclidean_distance(val1, val2):
