@@ -24,6 +24,25 @@ from statsmodels.tsa.arima.model import ARIMA
 def extract_route_id(route):
     return route.split('-')[0]
 
+# function for dividing the area in equally distributed clients
+def divide_vector(vector, num_subvectors):
+    total_elements = len(vector)
+    subvector_length = total_elements // num_subvectors
+    remainder = total_elements % num_subvectors
+
+    subvectors = []
+    start_index = 0
+    for i in range(num_subvectors):
+        if i < remainder:
+            subvector_end = start_index + subvector_length + 1
+        else:
+            subvector_end = start_index + subvector_length
+
+        subvectors.append(vector[start_index:subvector_end])
+        start_index = subvector_end
+
+    return subvectors
+
 
 # split a multivariate sequence into samples
 def split_multivariate_sequences(sequences, n_steps_in, n_steps_out,to_predict):
@@ -70,19 +89,21 @@ def df_to_supervised_routes(df_train,scaler,n_steps_in,n_features,n_steps_out):
     return X_train, y_train
     
 # function to preprocess data for scenario s1: each area is assigned to a distinct client
-def preprocessing_s1(areas,seeds,split,n_train,n_val,df,path_data,scaler,n_steps_in,n_features,n_steps_out):
+def preprocessing_s1(areas,split,n_train_start,n_val,n_test,df,path_data,scaler,n_steps_in,n_features,n_steps_out):
     
     for i in range(len(areas)): #working area by area
         a = areas[i]
         df_area =  df[df['area']==a]
         weeks = np.array(df_area.week.unique())
 
-        # random sampling based on weeks
-        rng = np.random.default_rng(seed = seeds[split])
-        rng.shuffle(weeks)
-        train_weeks = weeks[:n_train]
-        val_weeks = weeks[n_train:n_train + n_val]
-        test_weeks = weeks[n_train + n_val:]
+        # time-based cross validation
+        train_end = n_train_start + split # training set grows split by split
+        val_end = train_end + n_val
+        test_end = val_end + n_test
+
+        train_weeks = weeks[:train_end]  # First 'train_end' weeks for training
+        val_weeks = weeks[train_end:val_end]  # The following 'n_val' week for validation
+        test_weeks = weeks[val_end:test_end]  # The following 'n_test' week for validation
 
         # filtering the DataFrame for each split
         df_train = df_area[df_area['week'].isin(train_weeks)]
@@ -119,13 +140,19 @@ def preprocessing_s1(areas,seeds,split,n_train,n_val,df,path_data,scaler,n_steps
         np.save(path_y_test,y_test)
 
 # function to preprocess data for scenario s2: each area is divided in 5 parts, each assigned to a distinct client
-def preprocessing_s2(num_clients,routes_per_area,seeds,split,n_train,n_val,df,path_data,scaler,n_steps_in,n_features,n_steps_out):
+def preprocessing_s2(num_clients,routes_per_area,seeds,split,n_train_start,n_val,n_test,df,path_data,scaler,n_steps_in,n_features,n_steps_out):
 
-    rng = np.random.default_rng(seed = seeds[split])
-    rng.shuffle(weeks)
-    train_weeks = weeks[:n_train]
-    val_weeks = weeks[n_train:n_train + n_val]
-    test_weeks = weeks[n_train + n_val:]
+    weeks = np.array(df.week.unique())
+    all_routes = np.array(df.route_id.unique())
+
+    # time-based cross validation
+    train_end = n_train_start + split # training set grows split by split
+    val_end = train_end + n_val
+    test_end = val_end + n_test
+
+    train_weeks = weeks[:train_end]  # First 'train_end' weeks for training
+    val_weeks = weeks[train_end:val_end]  # The following 'n_val' week for validation
+    test_weeks = weeks[val_end:test_end]  # The following 'n_test' week for validation
     
     # Filter the DataFrame for each split
     df_train = df[df['week'].isin(train_weeks)]
@@ -137,6 +164,8 @@ def preprocessing_s2(num_clients,routes_per_area,seeds,split,n_train,n_val,df,pa
 
     # partitioning all the routes for the number of clients:
     all_routes_divided = []
+    rng = np.random.default_rng(seed = seeds[split])
+    
     for i in range(len(all_routes)):
         routes_area = routes_per_area[i].copy() #taking the routes of the area
         rng.shuffle(routes_area) 
