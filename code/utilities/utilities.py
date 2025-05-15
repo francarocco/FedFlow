@@ -18,14 +18,33 @@ from statsmodels.tsa.arima.model import ARIMA
 
 
 
-# defintion of utility function
 
-# Function to extract the part before '-'
+
 def extract_route_id(route):
+    """
+    Extract the base route ID from a route string in the format 'route-block'.
+
+    Parameters:
+    - route (str): The full route identifier (e.g., 'R12-B3').
+
+    Returns:
+    - str: The extracted route ID (e.g., 'R12').
+    """
     return route.split('-')[0]
 
-# function for dividing the area in equally distributed clients
+
+
 def divide_vector(vector, num_subvectors):
+    """
+    Evenly divide a list/vector into `num_subvectors` parts, distributing remainder as evenly as possible.
+
+    Parameters:
+    - vector (list): List to divide.
+    - num_subvectors (int): Number of parts to divide into.
+
+    Returns:
+    - List[List]: A list of subvectors.
+    """
     total_elements = len(vector)
     subvector_length = total_elements // num_subvectors
     remainder = total_elements % num_subvectors
@@ -44,24 +63,48 @@ def divide_vector(vector, num_subvectors):
     return subvectors
 
 
-# split a multivariate sequence into samples
-def split_multivariate_sequences(sequences, n_steps_in, n_steps_out,to_predict):
- X, y = list(), list()
- for i in range(len(sequences)):
-  # find the end of this pattern
-  end_ix = i + n_steps_in
-  out_end_ix = end_ix + n_steps_out
-  # check if we are beyond the dataset
-  if out_end_ix > len(sequences):
-   break
-  # gather input and output parts of the pattern
-  seq_x, seq_y = sequences[i:end_ix, :], sequences[end_ix:out_end_ix, to_predict]
-  X.append(seq_x)
-  y.append(seq_y)
- return np.array(X), np.array(y)
 
-# function for generating supervised dataset, route by route, block_id by block_id
+def split_multivariate_sequences(sequences, n_steps_in, n_steps_out,to_predict):
+    """
+    Convert multivariate time series data into supervised learning samples.
+
+    Parameters:
+    - sequences (np.ndarray): Input time series data (n_samples, n_features).
+    - n_steps_in (int): Input sequence length.
+    - n_steps_out (int): Output prediction length.
+    - to_predict (int): Index of the target feature to predict.
+
+    Returns:
+    - Tuple[np.ndarray, np.ndarray]: Input (X) and output (y) samples.
+    """
+    X, y = list(), list()
+    for i in range(len(sequences)):
+        # find the end of this pattern
+        end_ix = i + n_steps_in
+        out_end_ix = end_ix + n_steps_out
+        # check if we are beyond the dataset
+        if out_end_ix <= len(sequences):
+            # gather input and output parts of the pattern
+            seq_x, seq_y = sequences[i:end_ix, :], sequences[end_ix:out_end_ix, to_predict]
+            X.append(seq_x)
+            y.append(seq_y)
+    return np.array(X), np.array(y)
+
+
 def df_to_supervised_routes(df_train,scaler,n_steps_in,n_features,n_steps_out):
+    """
+    Convert structured time series data by route, date, and block into supervised format.
+
+    Parameters:
+    - df_train (pd.DataFrame): Dataframe containing training data.
+    - scaler (object): Fitted scaler (e.g., MinMaxScaler).
+    - n_steps_in (int): Length of input sequence.
+    - n_features (int): Number of input features.
+    - n_steps_out (int): Length of output sequence.
+
+    Returns:
+    - Tuple[np.ndarray, np.ndarray]: Supervised inputs and outputs.
+    """
     X_train = np.empty((0, n_steps_in, n_features))
     y_train = np.empty((0, n_steps_out)) 
     routes = df_train.route_id.unique()
@@ -88,9 +131,25 @@ def df_to_supervised_routes(df_train,scaler,n_steps_in,n_features,n_steps_out):
                     y_train = np.concatenate((y_train,yi),axis=0)
     return X_train, y_train
     
-# function to preprocess data for scenario s1: each area is assigned to a distinct client
+
 def preprocessing_s1(areas,split,n_train_start,n_val,n_test,df,path_data,scaler,n_steps_in,n_features,n_steps_out):
-    
+    """
+    Preprocess data for scenario S1 where each area is assigned to a separate client.
+
+    Saves processed .npy files to disk for training, validation, and testing.
+
+    Parameters:
+    - areas (List): List of area identifiers.
+    - split (int): Current time split.
+    - n_train_start (int): Initial number of training weeks.
+    - n_val (int), n_test (int): Validation and test window sizes.
+    - df (pd.DataFrame): Full dataset.
+    - path_data (str): Path to save preprocessed data.
+    - scaler (object): Fitted scaler.
+    - n_steps_in (int): Length of input sequence.
+    - n_features (int): Number of input features.
+    - n_steps_out (int): Length of output sequence.
+    """
     for i in range(len(areas)): #working area by area
         a = areas[i]
         df_area =  df[df['area']==a]
@@ -139,9 +198,24 @@ def preprocessing_s1(areas,split,n_train_start,n_val,n_test,df,path_data,scaler,
         np.save(path_X_test,X_test)
         np.save(path_y_test,y_test)
 
-# function to preprocess data for scenario s2: each area is divided in 5 parts, each assigned to a distinct client
-def preprocessing_s2(num_clients,routes_per_area,seeds,split,n_train_start,n_val,n_test,df,path_data,scaler,n_steps_in,n_features,n_steps_out):
 
+def preprocessing_s2(num_clients,routes_per_area,seeds,split,n_train_start,n_val,n_test,df,path_data,scaler,n_steps_in,n_features,n_steps_out):
+    """
+    Preprocess data for scenario S2 where each area is divided among multiple clients.
+
+    Parameters:
+    - num_clients (int): Number of clients per area.
+    - routes_per_area (List[List[str]]): Routes grouped by area.
+    - seeds (List[int]): Random seeds for reproducibility across splits.
+    - n_train_start (int): Initial number of training weeks.
+    - n_val (int), n_test (int): Validation and test window sizes.
+    - df (pd.DataFrame): Full dataset.
+    - path_data (str): Path to save preprocessed data.
+    - scaler (object): Fitted scaler.
+    - n_steps_in (int): Length of input sequence.
+    - n_features (int): Number of input features.
+    - n_steps_out (int): Length of output sequence.
+    """
     weeks = np.array(df.week.unique())
     all_routes = np.array(df.route_id.unique())
 
@@ -215,12 +289,33 @@ def preprocessing_s2(num_clients,routes_per_area,seeds,split,n_train_start,n_val
         np.save(path_X_test,X_test)
         np.save(path_y_test,y_test)
 
-# make a persistence forecast
-def persistence(last_ob, n_seq):
-	return [last_ob for i in range(n_seq)]
 
-# evaluate the persistence model
+def persistence(last_ob, n_seq):
+    """
+    Generate a naive (persistence) forecast by repeating the last observed value.
+
+    Parameters:
+    - last_ob (float): The last observed value in the time series.
+    - n_seq (int): Number of steps to forecast.
+
+    Returns:
+    - List[float]: Forecasted values repeated over the horizon.
+    """
+    return [last_ob for i in range(n_seq)]
+
+
 def make_forecasts_naive_forecasting(test, n_lag, n_seq):
+    """
+    Apply naive forecasting to a test dataset using the persistence model.
+
+    Parameters:
+    - test (np.ndarray): Array of test sequences (each with lag + future steps).
+    - n_lag (int): Number of lag steps used for input.
+    - n_seq (int): Number of future steps to predict.
+
+    Returns:
+    - List[List[float]]: Forecasts for each sequence in the test set.
+    """
     test = np.array(test)
     forecasts = list()
     for i in range(len(test)):
@@ -231,12 +326,26 @@ def make_forecasts_naive_forecasting(test, n_lag, n_seq):
         forecasts.append(forecast)
     return forecasts
 
-# evaluate the RMSE for each forecast time step
+
 def evaluate_forecasts_naive_forecasting(test, forecasts, n_lag, n_seq):
+  """
+    Evaluate naive forecasts using RMSE and MAE per prediction horizon.
+
+    Parameters:
+    - test (np.ndarray): Ground truth sequences, including both lag and forecast steps.
+    - forecasts (List[List[float]]): Forecasted sequences from the naive model.
+    - n_lag (int): Number of input steps (used to align forecasts with actuals).
+    - n_seq (int): Number of prediction steps (forecast horizon).
+
+    Returns:
+    - Tuple[pd.DataFrame, pd.DataFrame]: 
+        - AE: Absolute Errors per horizon
+        - SE: Squared Errors per horizon
+    """
   AE=pd.DataFrame()
   SE=pd.DataFrame()
   test = np.array(test)
-  forecast = np.array(forecasts)
+  forecasts = np.array(forecasts)
   for i in range(n_seq):
     actual = test[:,(n_lag+i)]
     predicted = [forecast[i] for forecast in forecasts]
@@ -257,53 +366,101 @@ def evaluate_forecasts_naive_forecasting(test, forecasts, n_lag, n_seq):
 
   return AE, SE
 
-# evaluate the RMSE for each forecast time step
+
 def evaluate_forecasts(y_test, forecasts, n_lag, n_seq):
-	AE=pd.DataFrame()
-	SE=pd.DataFrame()
-	for i in range(n_seq):
-		actual = [row[i] for row in y_test]
-		predicted = [forecast[i] for forecast in forecasts]
-		rmse = sqrt(mean_squared_error(actual, predicted))
-		mae = mean_absolute_error(actual,predicted)
-		print('t+%d RMSE: %f' % ((i+1), rmse),flush=True)
-		print('t+%d MAE: %f' % ((i+1), mae),flush=True)
-		AEi=pd.DataFrame()
-		absolute_error=np.absolute(np.asarray(actual)-np.asarray(predicted))
-		AEi['Absolute Error']=absolute_error
-		AEi['Horizon'] = pd.Series(['horizon = %d ' % (i+1) for x in range(len(AEi.index))])
-		AE=pd.concat([AE,AEi],ignore_index=True)
-		SEi=pd.DataFrame()
-		squared_error=np.square(np.asarray(actual)-np.asarray(predicted))
-		SEi['Square Error']=squared_error
-		SEi['Horizon'] = pd.Series(['horizon = %d ' % (i+1) for x in range(len(SEi.index))])
-		SE=pd.concat([SE,SEi],ignore_index=True)
-	return AE, SE
+    """
+    Evaluate forecast accuracy using RMSE and MAE for each forecast horizon.
+
+    Parameters:
+    - y_test (List[List[float]]): True values for each forecast step.
+    - forecasts (List[List[float]]): Predicted values.
+    - n_lag (int): Number of lag steps (not used directly here but retained for consistency).
+    - n_seq (int): Number of forecast steps (horizons).
+
+    Returns:
+    - Tuple[pd.DataFrame, pd.DataFrame]: 
+        - AE: Absolute errors per forecast step.
+        - SE: Squared errors per forecast step.
+    """
+    AE=pd.DataFrame()
+    SE=pd.DataFrame()
+    for i in range(n_seq):
+        actual = [row[i] for row in y_test]
+        predicted = [forecast[i] for forecast in forecasts]
+        rmse = sqrt(mean_squared_error(actual, predicted))
+        mae = mean_absolute_error(actual,predicted)
+        print('t+%d RMSE: %f' % ((i+1), rmse),flush=True)
+        print('t+%d MAE: %f' % ((i+1), mae),flush=True)
+        AEi=pd.DataFrame()
+        absolute_error=np.absolute(np.asarray(actual)-np.asarray(predicted))
+        AEi['Absolute Error']=absolute_error
+        AEi['Horizon'] = pd.Series(['horizon = %d ' % (i+1) for x in range(len(AEi.index))])
+        AE=pd.concat([AE,AEi],ignore_index=True)
+        SEi=pd.DataFrame()
+        squared_error=np.square(np.asarray(actual)-np.asarray(predicted))
+        SEi['Square Error']=squared_error
+        SEi['Horizon'] = pd.Series(['horizon = %d ' % (i+1) for x in range(len(SEi.index))])
+        SE=pd.concat([SE,SEi],ignore_index=True)
+    return AE, SE
     
 def custom_mean_absolute_percentage_error(y_true, y_pred, epsilon=1):
+    """
+    Compute mean absolute percentage error (MAPE) with a safeguard for small values.
+
+    Parameters:
+    - y_true (array-like): True values.
+    - y_pred (array-like): Predicted values.
+    - epsilon (float): Small constant to avoid division by zero.
+
+    Returns:
+    - float: MAPE value in percentage.
+    """
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
     absolute_percentage_error = np.abs((y_true - y_pred) / np.maximum(np.abs(y_true), epsilon))
     return np.mean(absolute_percentage_error) * 100    
     
-# evaluate the MAPE
-def evaluate_MAPE_forecasts(y_test, forecasts, n_lag, n_seq):
-	APE=pd.DataFrame()
-	for i in range(n_seq):
-		actual = [row[i] for row in y_test]
-		predicted = [forecast[i] for forecast in forecasts]
-		APEi=pd.DataFrame()
-		absolute_percentage_error=[custom_mean_absolute_percentage_error([actual[j]],[predicted[j]]) for j in range(len(actual))]
-		APEi['Absolute Percentage Error']=absolute_percentage_error
-		APEi['Horizon'] = pd.Series(['horizon = %d ' % (i+1) for x in range(len(APEi.index))])
-		APE=pd.concat([APE,APEi],ignore_index=True)
-	return APE
 
-# evaluate the MAPE
-def evaluate_MAPE_forecasts_naive_forecasting(y_test, forecasts, n_lag, n_seq):
+def evaluate_MAPE_forecasts(y_test, forecasts, n_lag, n_seq):
+    """
+    Evaluate MAPE for each forecast horizon using custom error function.
+
+    Parameters:
+    - y_test (List[List[float]]): True output values.
+    - forecasts (List[List[float]]): Predicted output values.
+    - n_lag (int): Lag length (not used here).
+    - n_seq (int): Forecast horizon length.
+
+    Returns:
+    - pd.DataFrame: Absolute percentage error per forecast step.
+    """
+    APE=pd.DataFrame()
+    for i in range(n_seq):
+        actual = [row[i] for row in y_test]
+        predicted = [forecast[i] for forecast in forecasts]
+        APEi=pd.DataFrame()
+        absolute_percentage_error=[custom_mean_absolute_percentage_error([actual[j]],[predicted[j]]) for j in range(len(actual))]
+        APEi['Absolute Percentage Error']=absolute_percentage_error
+        APEi['Horizon'] = pd.Series(['horizon = %d ' % (i+1) for x in range(len(APEi.index))])
+        APE=pd.concat([APE,APEi],ignore_index=True)
+    return APE
+
+def evaluate_MAPE_forecasts_naive_forecasting(y_test, forecasts, n_seq):
+    """
+    Evaluate MAPE for naive (persistence-based) forecasts.
+
+    Parameters:
+    - y_test (np.ndarray): True values, shape = (samples, forecast_horizon).
+    - forecasts (List[List[float]]): Predicted values, shape = (samples, forecast_horizon).
+    - n_seq (int): Forecast horizon.
+
+    Returns:
+    - pd.DataFrame: Absolute percentage error per forecast horizon.
+    """
+
     APE=pd.DataFrame()
     y_test = np.array(y_test)
-    forecast = np.array(forecasts)
+    forecasts = np.array(forecasts)
     for i in range(n_seq):
         actual = y_test[:,i]
         predicted = [forecast[i] for forecast in forecasts]
@@ -315,6 +472,19 @@ def evaluate_MAPE_forecasts_naive_forecasting(y_test, forecasts, n_lag, n_seq):
     return APE
 
 def inverse_transform(scaler, preds):
+    """
+    Invert scaling applied to prediction values using the original scaler structure.
+
+    Assumes scaler expects a 6-feature input:
+    ['occupancy', 'stop_id', 'month', 'weekday', 'timeslot', 'route_id']
+
+    Parameters:
+    - scaler: A fitted scaler (e.g., MinMaxScaler) used during training.
+    - preds (np.ndarray): Scaled predictions, shape = (samples, forecast_horizon)
+
+    Returns:
+    - np.ndarray: Inverse-transformed values of shape (samples, forecast_horizon)
+    """
     # Initialize an empty matrix
     inverted = np.empty((preds.shape[0], 0))
     for i in range(preds.shape[1]):
@@ -335,6 +505,15 @@ def inverse_transform(scaler, preds):
     
 # finding the best hyperparameters
 def adf_test(series):
+    """
+    Perform Augmented Dickey-Fuller test for stationarity.
+
+    Parameters:
+    - series (array-like): Time series data.
+
+    Returns:
+    - float: p-value of the test (used to determine stationarity).
+    """
     result = adfuller(series)
     print('ADF Statistic:', result[0])
     print('p-value:', result[1])
@@ -342,6 +521,20 @@ def adf_test(series):
 
 # evaluate the persistence model
 def make_arima_forecasts(train,test, n_lag, n_seq, order):
+    """
+    Generate multi-step forecasts using ARIMA.
+
+    Parameters:
+    - train (List[float]): Training time series.
+    - test (List[float]): Test data series.
+    - n_lag (int): Size of historical window to use.
+    - n_seq (int): Forecast horizon (number of future steps).
+    - order (Tuple[int]): ARIMA order (p, d, q).
+
+    Returns:
+    - forecasts (List[List[float]]): Predicted values per step.
+    - actuals (List[List[float]]): Ground truth values aligned with forecasts.
+    """
     forecasts = []
     actuals = []
     history  = [x for x in train]
@@ -364,6 +557,20 @@ def make_arima_forecasts(train,test, n_lag, n_seq, order):
 
 # evaluate the RMSE for each forecast time step
 def evaluate_arima_forecasts(test, forecasts, n_lag, n_seq):
+    """
+    Evaluate ARIMA forecasts using absolute and squared error per time step.
+
+    Parameters:
+    - test (np.ndarray): True values, shape = (samples, forecast_horizon).
+    - forecasts (List[List[float]]): Forecasted values.
+    - n_lag (int): Historical window size (unused but retained for compatibility).
+    - n_seq (int): Forecast horizon.
+
+    Returns:
+    - Tuple[pd.DataFrame, pd.DataFrame]: 
+        - AE: Absolute Error
+        - SE: Squared Error
+    """
     AE=pd.DataFrame()
     SE=pd.DataFrame()
     test = np.array(test)
@@ -385,6 +592,18 @@ def evaluate_arima_forecasts(test, forecasts, n_lag, n_seq):
 
 # evaluate the MAPE
 def evaluate_arima_MAPE_forecasts(y_test, forecasts, n_lag, n_seq):
+    """
+    Evaluate ARIMA forecasts using MAPE per forecast horizon.
+
+    Parameters:
+    - y_test (np.ndarray): Ground truth values.
+    - forecasts (List[List[float]]): Predicted values.
+    - n_lag (int): Unused.
+    - n_seq (int): Forecast horizon.
+
+    Returns:
+    - pd.DataFrame: Absolute Percentage Error per forecast step.
+    """
     APE=pd.DataFrame()
     y_test = np.array(y_test)
     forecasts = np.array(forecasts)
@@ -398,18 +617,45 @@ def evaluate_arima_MAPE_forecasts(y_test, forecasts, n_lag, n_seq):
         APE=pd.concat([APE,APEi],ignore_index=True)
     return APE
 
-# Function to calculate Euclidean distance between two matrices 
+
 def euclidean_distance(val1, val2):
+    """
+    Compute absolute (Euclidean for scalars) distance between two values.
+
+    Parameters:
+    - val1, val2 (float): Numeric values.
+
+    Returns:
+    - float: Absolute distance.
+    """
     return abs(val1 - val2)
     
-# Function to normalize the distances to obtain similarity scores
+
 def normalize_distances(distances):
+    """
+    Normalize an array of distances to [0, 1] range (as similarity scores).
+
+    Parameters:
+    - distances (np.ndarray): Raw distances.
+
+    Returns:
+    - np.ndarray: Similarity scores, where higher is more similar.
+    """
     max_dist = np.max(distances)
     min_dist = np.min(distances)
     return (max_dist - distances) / (max_dist - min_dist)
    
-# Min-Max Normalization
+
 def min_max_normalize(matrix):
+    """
+    Normalize a matrix to the [0, 1] range using Min-Max scaling.
+
+    Parameters:
+    - matrix (np.ndarray): Matrix of values.
+
+    Returns:
+    - np.ndarray: Normalized matrix.
+    """
     min_val = np.min(matrix)
     max_val = np.max(matrix)
     normalized_matrix = (matrix - min_val) / (max_val - min_val)
